@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="xterm.css" />
+    <title>SSH over WebSocket</title>
+    <style>
+        #terminal {
+            width: 100%;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div>
+    Password:
+    <input type="password" id="myPassword" name="password">
+    TOTP:
+    <input id="myTOTP", name="totp">
+    <button onclick="updatePassword()">Update</button>
+    </div>
+
+    <div id="terminal"></div>
+    <script src="xterm.js"></script>
+    <script>
+
+async function encryptData(bytes, key) {
+    const algorithm = { name: "AES-GCM" };
+    const keyUsages = ["encrypt"];
+    const iv = crypto.getRandomValues(new Uint8Array(12)); // Generate a random IV
+    const encrypted = await window.crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        bytes
+    );
+    // concatenate 12bit iv and encrypted data
+    var tmp = new Uint8Array(iv.byteLength + encrypted.byteLength);
+    tmp.set(new Uint8Array(iv), 0);
+    tmp.set(new Uint8Array(encrypted), iv.byteLength);
+    return tmp.buffer;
+}
+async function decryptData(encryptedData, key) {
+    // 1st 12 bits are the iv
+    const iv = encryptedData.slice(0, 12);
+    const data = encryptedData.slice(12);
+    const algorithm = { name: "AES-GCM" };
+    const keyUsages = ["decrypt"];
+    const decrypted = await window.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        data
+    );
+    return decrypted;
+}
+
+function updatePassword() {
+  const passwordInput = document.getElementById("myPassword");
+  const totpInput = document.getElementById("myTOTP");
+  password = passwordInput.value;
+  totp = totpInput.value;
+  connect();
+}
+function bytesToHex(bytes) {
+  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+	var key;
+	var totp;
+        var password;
+        const term = new Terminal();
+
+function connect() {
+        term.open(document.getElementById('terminal'));
+        term.writeln('Connecting to SSH server...');
+        let currentLocation = window.location.host;
+        let prefix = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const socket = new WebSocket(prefix + currentLocation + '/ssh');
+        socket.binaryType = 'arraybuffer';
+        let begin = true
+
+        socket.onopen = function () {
+            term.writeln('Connected to the server.');
+        };
+
+        socket.onmessage = async (event) => {
+            if (begin) {
+		const data = event.data;
+		const pwUtf8 = new TextEncoder().encode(password);
+		const totpUtf8 = new TextEncoder().encode(totp);
+		const saltUtf8 = data.slice(0, 16)
+                const keyMaterial = await window.crypto.subtle.importKey(
+                    "raw",
+                    totpUtf8,
+                    { name: "PBKDF2" },
+                    false,
+                    ["deriveKey", "deriveBits"]
+                );
+                const derivedSalt = await window.crypto.subtle.deriveBits(
+                    {
+                        name: "PBKDF2",
+                        salt: saltUtf8,
+                        iterations: 10000,
+                        hash: "SHA-256",
+                    },
+                    keyMaterial,
+                    128
+                );
+                const salt = new Uint8Array(derivedSalt);
+                const keyMaterial2 = await window.crypto.subtle.importKey(
+                    "raw",
+                    pwUtf8,
+                    { name: "PBKDF2" },
+                    false,
+                    ["deriveKey", "deriveBits"]
+                );
+                const derivedKey = await window.crypto.subtle.deriveKey(
+                    {
+                        name: "PBKDF2",
+                        salt: salt,
+                        iterations: 10000,
+                        hash: "SHA-256",
+                    },
+                    keyMaterial2,
+                    { name: "AES-GCM", length: 256 },
+                    true,
+                    ["encrypt", "decrypt"]
+                );
+                key = derivedKey;
+                const encrypted = await encryptData(data.slice(16), key);
+                socket.send(encrypted);
+		begin = false;
+            } else {
+                const decryptedText = await decryptData(event.data, key);
+                term.write(new TextDecoder().decode(decryptedText));
+            }
+        };
+
+        socket.onerror = function (event) {
+            console.error('WebSocket error:', event);
+            term.writeln('WebSocket error. See console for details.');
+        };
+
+        socket.onclose = function () {
+            term.writeln('Disconnected from the server.');
+        };
+
+        term.onData( async (data) => {
+            const encrypted = await encryptData(new TextEncoder().encode(data), key);
+            socket.send(encrypted);
+        });
+}
+    </script>
+</body>
+</html>
