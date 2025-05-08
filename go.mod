@@ -1,4 +1,4 @@
-module e2e_webssh
+module github.com/PhracturedBlue/e2e_webssh
 
 go 1.24.0
 
