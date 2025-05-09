@@ -30,7 +30,7 @@ var aeskey string
 
 var totp string
 var password string
-var ssh_pass string
+var env_ssh_pass string
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -172,6 +172,7 @@ func (ws *WS) ReadLine(prompt string, echo bool) ([]byte, error) {
 		}
 		for i := 0; i < len(msg); i++ {
 			if msg[i] == '\r' || msg[i] == '\n' {
+				ws.Send("\r\n")
 				return buf[:n], nil
 			}
 			buf[n] = msg[i]
@@ -253,6 +254,9 @@ func sshHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("Authenticated")
 		ws.SetKey(key)
 	}
+	ws.Send("ok")
+
+	ssh_pass := env_ssh_pass	
 	if ssh_pass == "" {
 		pass_bytes, err := ws.ReadLine("password: ", false)
 		if err != nil {
@@ -260,7 +264,7 @@ func sshHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ssh_pass = string(pass_bytes)
-		// fmt.Printf("Received: %s"\n, pass)
+		// fmt.Printf("Received: %s\n", ssh_pass)
 	}
 
 	config := &ssh.ClientConfig{
@@ -458,8 +462,8 @@ func decryptArgs() {
 		log.Printf("Encrypted password: %s", encryptArg(os.Getenv("PASSWORD"), key))
 		generated = true
 	}
-	ssh_pass = decryptArg("SSH_PASS", key, true)
-	if ssh_pass == "" {
+	env_ssh_pass = decryptArg("SSH_PASS", key, true)
+	if env_ssh_pass == "" {
 		if os.Getenv("SSH_PASS") != "" {
 			log.Printf("Encrypted ssh password: %s", encryptArg(os.Getenv("SSH_PASS"), key))
 			generated = true
