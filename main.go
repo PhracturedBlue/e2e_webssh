@@ -217,7 +217,7 @@ func sshHandler(w http.ResponseWriter, r *http.Request) {
 	p, err := ws.Receive()
 	if p == nil || err != nil {
 		if err != nil && err != io.EOF {
-			log.Println("Read from WebSocket error:", err)
+			fmt.Printf("Failed to receieve response: %s", err)
 		}
 		return
 	}
@@ -255,17 +255,22 @@ func sshHandler(w http.ResponseWriter, r *http.Request) {
 		ws.SetKey(key)
 	}
 	ws.Send("ok")
-
+	p, err = ws.Receive()
+        if p == nil || err != nil || string(p) != "ok" {
+            fmt.Printf("Did not complete handshake: %s (%s)", p, err)
+            return
+        }
 	ssh_pass := env_ssh_pass	
 	if ssh_pass == "" {
 		pass_bytes, err := ws.ReadLine("password: ", false)
 		if err != nil {
-			log.Println(err)
+			fmt.Printf("Failed to receive password: %s", err)
 			return
 		}
 		ssh_pass = string(pass_bytes)
 		// fmt.Printf("Received: %s\n", ssh_pass)
 	}
+        log.Println("Received Password")
 
 	config := &ssh.ClientConfig{
 		User: user,

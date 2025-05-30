@@ -24,40 +24,40 @@
     <script>
 
 async function encryptData(bytes, key) {
-	const algorithm = { name: "AES-GCM" };
-	const keyUsages = ["encrypt"];
-	const iv = crypto.getRandomValues(new Uint8Array(12)); // Generate a random IV
-	const encrypted = await window.crypto.subtle.encrypt(
-			{ name: "AES-GCM", iv: iv },
-			key,
-			bytes
-			);
-	// concatenate 12bit iv and encrypted data
-	var tmp = new Uint8Array(iv.byteLength + encrypted.byteLength);
-	tmp.set(new Uint8Array(iv), 0);
-	tmp.set(new Uint8Array(encrypted), iv.byteLength);
-	return tmp.buffer;
+        const algorithm = { name: "AES-GCM" };
+        const keyUsages = ["encrypt"];
+        const iv = crypto.getRandomValues(new Uint8Array(12)); // Generate a random IV
+        const encrypted = await window.crypto.subtle.encrypt(
+                        { name: "AES-GCM", iv: iv },
+                        key,
+                        bytes
+                        );
+        // concatenate 12bit iv and encrypted data
+        var tmp = new Uint8Array(iv.byteLength + encrypted.byteLength);
+        tmp.set(new Uint8Array(iv), 0);
+        tmp.set(new Uint8Array(encrypted), iv.byteLength);
+        return tmp.buffer;
 }
 async function decryptData(encryptedData, key) {
-	// 1st 12 bits are the iv
-	const iv = encryptedData.slice(0, 12);
-	const data = encryptedData.slice(12);
-	const algorithm = { name: "AES-GCM" };
-	const keyUsages = ["decrypt"];
-	const decrypted = await window.crypto.subtle.decrypt(
-			{ name: "AES-GCM", iv: iv },
-			key,
-			data
-			);
-	return decrypted;
+        // 1st 12 bits are the iv
+        const iv = encryptedData.slice(0, 12);
+        const data = encryptedData.slice(12);
+        const algorithm = { name: "AES-GCM" };
+        const keyUsages = ["decrypt"];
+        const decrypted = await window.crypto.subtle.decrypt(
+                        { name: "AES-GCM", iv: iv },
+                        key,
+                        data
+                        );
+        return decrypted;
 }
 
 async function login(socket, data) {
-	const passwordInput = document.getElementById("myPassword");
-	const totpInput = document.getElementById("myTOTP");
-	const pwUtf8 = new TextEncoder().encode(passwordInput.value);
-	const totpUtf8 = new TextEncoder().encode(totpInput.value);
-	const saltUtf8 = data.slice(0, 16)
+        const passwordInput = document.getElementById("myPassword");
+        const totpInput = document.getElementById("myTOTP");
+        const pwUtf8 = new TextEncoder().encode(passwordInput.value);
+        const totpUtf8 = new TextEncoder().encode(totpInput.value);
+        const saltUtf8 = data.slice(0, 16)
                const keyMaterial = await window.crypto.subtle.importKey(
                    "raw",
                    totpUtf8,
@@ -100,13 +100,13 @@ async function login(socket, data) {
                 socket.send(encrypted);
 }
 function updatePassword() {
-	if (socket) {
-		socket.close()
-	}
-	connect();
+        if (socket) {
+                socket.close()
+        }
+        connect();
 }
 function bytesToHex(bytes) {
-	return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+        return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 var key;
 var socket = null;
@@ -133,19 +133,21 @@ function connect() {
 
         socket.onmessage = async (event) => {
             if (login_state == 0) {
-		await login(socket, event.data);
-		login_state = 1;
-	    } else if (login_state == 1) {
+                await login(socket, event.data);
+                login_state = 1;
+            } else if (login_state == 1) {
                 const decryptedText = await decryptData(event.data, key);
-		if (new TextDecoder().decode(decryptedText) == "ok") {
-			const passwordInput = document.getElementById("myPassword");
-			const totpInput = document.getElementById("myTOTP");
-			passwordInput.value = "";
-			totpInput.value = "";
-			login_state = 2;
-		} else {
-			socket.close();
-		}
+                if (new TextDecoder().decode(decryptedText) == "ok") {
+                        const passwordInput = document.getElementById("myPassword");
+                        const totpInput = document.getElementById("myTOTP");
+                        passwordInput.value = "";
+                        totpInput.value = "";
+                        login_state = 2;
+                        const resp = await encryptData(new TextEncoder().encode("ok"), key);
+                        socket.send(resp);
+                } else {
+                        socket.close();
+                }
             } else {
                 const decryptedText = await decryptData(event.data, key);
                 term.write(new TextDecoder().decode(decryptedText));
@@ -159,7 +161,7 @@ function connect() {
 
         socket.onclose = function () {
             term.writeln('Disconnected from the server.');
-	    socket = null;
+            socket = null;
         };
 
 }
