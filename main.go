@@ -406,6 +406,9 @@ func createServer(shouldMountHTML bool) *http.Server {
 		mux.HandleFunc("/xterm.js", func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, "xterm.js")
 		})
+		mux.HandleFunc("/xterm-addon-fit.js", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, "xterm-addon-fit.js")
+		})
 	}
 
 	return &http.Server{

@@ -11,6 +11,7 @@
     </style>
 </head>
 <body>
+<div style="display: flex; flex-direction: column; height: 100vh;">
     <div>
     Password:
     <input type="password" id="myPassword" name="password">
@@ -19,8 +20,10 @@
     <button onclick="updatePassword()">Update</button>
     </div>
 
-    <div id="terminal"></div>
+    <div id="terminal" style="flex-grow: 1;"></div>
+</div>
     <script src="xterm.js"></script>
+    <script src="xterm-addon-fit.js"></script>
     <script>
 
 async function encryptData(bytes, key) {
@@ -111,6 +114,9 @@ function bytesToHex(bytes) {
 var key;
 var socket = null;
 const term = new Terminal();
+const fitAddon = new FitAddon.FitAddon();
+term.loadAddon(fitAddon);
+
 term.onData( async (data) => {
     const encrypted = await encryptData(new TextEncoder().encode(data), key);
     if (socket && socket.readyState === WebSocket.OPEN) {
@@ -118,6 +124,9 @@ term.onData( async (data) => {
     }
 });
 term.open(document.getElementById('terminal'));
+fitAddon.fit();
+
+window.addEventListener('resize', () => fitAddon.fit());
 
 function connect() {
         term.writeln('Connecting to SSH server...');
